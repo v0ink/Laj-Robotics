@@ -24,6 +24,15 @@ android {
     }
 }
 
+repositories {
+    maven { url = 'https://maven.brott.dev/' } // FTC Dashboard
+}
+
 dependencies {
     implementation project(':FtcRobotController')
+    // FTC Dashboard: browser telemetry, graphs, OpMode start/stop, gamepad (http://192.168.43.1:8080/dash)
+    // exclude: use the SDK version from build.dependencies.gradle, not the one Dashboard was built against
+    implementation('com.acmerobotics.dashboard:dashboard:0.6.0') {
+        exclude group: 'org.firstinspires.ftc'
+    }
 }

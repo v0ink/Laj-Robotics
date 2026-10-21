@@ -80,6 +80,10 @@ REV's sample Auto: back up for 0.7 s, then spin the flywheel for 15 s, feeding p
 - Upload or paste the `.java` files, then click Build. The **Control Hub compiles them itself**; no install or cable needed.
 - Blocks lives on the same page.
 
+## FTC Dashboard
+
+A browser control panel served by the robot at **http://192.168.43.1:8080/dash** (laptop on the robot's Wi-Fi). It does live telemetry and graphs, picks, INITs and starts OpModes, and takes a gamepad plugged into the laptop. Use it when the Driver Hub is dead or for tuning; it's not allowed in matches. See [SETUP.md](SETUP.md).
+
 ## Code sharing
 
 - GitHub repo: https://github.com/v0ink/Laj-Robotics (**public**, so no personal info, forms or passwords go in it)

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -23,6 +25,9 @@ public class SpinOneMotor extends LinearOpMode {
 
   @Override
   public void runOpMode() {
+    // Send telemetry to both the Driver Hub and FTC Dashboard (http://192.168.43.1:8080/dash)
+    telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+
     // INIT: find the motor by its configured name
     DcMotor motor = hardwareMap.get(DcMotor.class, MOTOR_NAME);
     motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

@@ -30,6 +30,26 @@ The easiest path is **Android Studio**. It installs the JDK and Android SDK itse
 
 If you'd rather use the command line: with Android Studio's JDK set as `JAVA_HOME`, run `gradlew.bat installDebug`.
 
+## Getting the latest code in Android Studio (Windows)
+
+1. Connect the PC to **normal internet**, not the robot's Wi-Fi.
+2. Pull: **Git → Pull…** in the top menu (or the blue ↙ arrow next to the branch name `master` at the top left), then click **Pull**.
+   You can also open the **Terminal** tab at the bottom and run `git pull`.
+3. If the build files changed, Android Studio shows a **"Sync Now"** bar. Click it, or use File → Sync Project with Gradle Files.
+4. Pick the **Control Hub** in the device dropdown, keep **TeamCode** selected, and press **Run ▶**.
+
+If the pull complains about "local changes", someone edited files on this PC. Ask Claude before overwriting them.
+
+## FTC Dashboard (control the robot from a browser)
+
+1. Connect the laptop to the Control Hub's Wi-Fi (`FTC-…` network).
+2. Open **http://192.168.43.1:8080/dash** in Chrome or Edge.
+3. At the top, pick an OpMode, then press **Init** and **Start**. Stop works the same way.
+4. Gamepad: plug it into the **laptop**, open the Dashboard's gamepad view, and press a button so the browser detects it. Browser gamepad support can be flaky, so if the Driver Hub is available, use that for driving.
+5. Telemetry (power, encoder, velocity) appears live, and numbers can be graphed.
+
+The Dashboard is only for practice and tuning. At competitions you must use the Driver Hub.
+
 ## Every time
 
 ```bash
