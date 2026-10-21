@@ -6,11 +6,14 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
+import java.util.List;
+
 /**
  * First test: spin one motor with the gamepad.
  *
- * Setup on the Driver Hub (⋮ → Configure Robot): add one motor on any motor port
- * and name it exactly "testMotor".
+ * Uses the motor named "testMotor" if the robot configuration has one.
+ * Otherwise it uses the first motor in the active configuration, so it works
+ * with whatever configuration is already on the robot.
  *
  * Controls (gamepad1):
  *   Left stick up/down  -> motor speed, forward/backward
@@ -28,8 +31,28 @@ public class SpinOneMotor extends LinearOpMode {
     // Send telemetry to both the Driver Hub and FTC Dashboard (http://192.168.43.1:8080/dash)
     telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-    // INIT: find the motor by its configured name
-    DcMotor motor = hardwareMap.get(DcMotor.class, MOTOR_NAME);
+    // INIT: list every motor in the active configuration, so we can see the names
+    List<DcMotor> allMotors = hardwareMap.getAll(DcMotor.class);
+    StringBuilder names = new StringBuilder();
+    for (DcMotor m : allMotors) {
+      names.append(hardwareMap.getNamesOf(m)).append(' ');
+    }
+
+    // Prefer "testMotor"; otherwise fall back to the first configured motor
+    DcMotor motor = hardwareMap.tryGet(DcMotor.class, MOTOR_NAME);
+    if (motor == null && !allMotors.isEmpty()) {
+      motor = allMotors.get(0);
+    }
+    if (motor == null) {
+      telemetry.addLine("No motors in the active robot configuration.");
+      telemetry.addLine("Add one (Configure Robot or FTC Dashboard) and try again.");
+      telemetry.update();
+      waitForStart();
+      return;
+    }
+    telemetry.addData("Using motor", hardwareMap.getNamesOf(motor));
+    telemetry.addData("All motors", names.length() > 0 ? names.toString() : "(none)");
+
     motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
     motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
