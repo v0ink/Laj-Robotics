@@ -10,4 +10,4 @@ This repo is FIRST's FtcRobotController (remote `upstream`) plus our code. Only 
 - Keep code compatible with OnBot Java too: plain Java, no external libraries unless we decide to switch to Gradle-only.
 - Students read this code. Keep it simple, comment the "why", and keep TeleOp controls documented in docs/NOTES.md when they change.
 - Every loop must check `opModeIsActive()`, and motors must be stopped when an action ends. The robot is physical, so a stuck loop means a runaway robot.
-- Code repo: https://github.com/v0ink/Laj-Robotics (public). Never push without the user asking, and never commit personal info.
+- Code repo: https://github.com/v0ink/Laj-Robotics (public). After a change compiles (`./deploy.sh build`), commit and push it so the team laptop can pull it. Never commit personal info.
