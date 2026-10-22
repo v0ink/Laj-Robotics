@@ -96,6 +96,14 @@ A browser control panel served by the robot at **http://192.168.43.1:8080/dash**
 - The ⋮ → "Program & Manage" menu is in the Driver Station app on the **Driver Hub**. The Control Hub has no screen.
 - "Deploy to device" means the Control Hub, not the Driver Hub.
 
+## Troubleshooting we've hit
+
+- **"Application installation failed… different signature"** (first install from Android Studio): click OK. It replaces REV's preinstalled Robot Controller app, which only happens once per computer.
+- **"Unknown host repo.maven.apache.org"**: the PC has no internet (it's on the robot's Wi-Fi). Switch to normal internet and sync.
+- **Driver Hub says connected but Configure Robot says "not connected", plus a "does not match" warning**: the Driver Station app version is older than our Robot Controller (12.0). Update the Driver Hub with the REV Hardware Client.
+- **Code says power 1.00 but the motor doesn't spin (hub ~0.18 A)**: the active configuration has the motor on a different port. The test OpMode **Any Input Motor** drives all four ports to get around this; the real fix is a correct configuration.
+- USB can't power motors: the 12 V battery and switch must be on.
+
 ## Open TODOs
 
 - [ ] Check the app versions on the Driver Hub (⋮ → About).
@@ -103,7 +111,9 @@ A browser control panel served by the robot at **http://192.168.43.1:8080/dash**
 - [x] Set up the repo with the FTC SDK (v12.0) and REV's starter TeleOp and Auto.
 - [x] Mac toolchain: openjdk@17 and Android SDK via Homebrew. Build verified.
 - [ ] Windows PC toolchain: see [SETUP.md](SETUP.md).
-- [ ] First deploy to the Control Hub. Test the starter TeleOp and Auto on the real robot.
+- [x] First deploy to the Control Hub from the Windows PC. A motor spins with Any Input Motor (2026-10-22).
+- [ ] Update the Driver Hub's Driver Station app to 12.0 (REV Hardware Client), then make the real robot configuration.
+- [ ] Test the starter TeleOp and Auto on the real robot.
 - [ ] Customize: tune `targetVelocity`, drive speed and Auto timing to our robot.
 
 ## Links
