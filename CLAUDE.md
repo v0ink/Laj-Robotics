@@ -6,7 +6,7 @@ This repo is FIRST's FtcRobotController (remote `upstream`) plus our code. Only 
 
 - Code is Java OpModes for the FTC SDK. There's one class per OpMode, in package `org.firstinspires.ftc.teamcode`, extending `LinearOpMode` and annotated `@TeleOp` or `@Autonomous`.
 - Hardware names in `hardwareMap.get(...)` must match the robot configuration exactly: `leftDrive`, `rightDrive`, `intakeMotor`, `flywheel`, `crServo`, `pollenServo`.
-- Our OpModes start from REV's working samples (`StarterBotTeleOp.java`, `StarterBotAuto.java`). They use newer SDK APIs (`gamepad1.crossWasPressed()`, `right_trigger_pressed`), so the SDK must be a current release.
+- The only OpMode right now is `ControllerTest.java` (left stick/trigger = motors, right stick/trigger = servos, on all ports). REV's Starter Bot TeleOp/Auto samples were removed on 2026-10-22; they're in git history (commit 9df2d73) if we need them again.
 - We deploy with Android Studio/Gradle and use **FTC Dashboard** (`com.acmerobotics.dashboard`). Wrap telemetry with `new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry())` so it shows on both the Driver Hub and the Dashboard. Code using Dashboard won't build in OnBot Java.
 - Students read this code. Keep it simple, comment the "why", and keep TeleOp controls documented in docs/NOTES.md when they change.
 - Every loop must check `opModeIsActive()`, and motors must be stopped when an action ends. The robot is physical, so a stuck loop means a runaway robot.
