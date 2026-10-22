@@ -2,11 +2,16 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 
 import java.util.List;
 
@@ -46,10 +51,9 @@ public class AnyInputMotor extends LinearOpMode {
       telemetry.addLine("No motors in the active robot configuration.");
       telemetry.addLine("Add a motor to the configuration, then try again.");
     } else {
-      telemetry.addData("Motors", names.toString());
       telemetry.addLine("Ready. Press ▶, then press Start + A on the gamepad.");
     }
-    telemetry.addData("Battery", "%.1f V", batteryVoltage());
+    addHardwareReport();
     telemetry.update();
 
     waitForStart();
@@ -91,13 +95,35 @@ public class AnyInputMotor extends LinearOpMode {
           gamepad1.right_stick_x, gamepad1.right_stick_y,
           gamepad1.left_trigger, gamepad1.right_trigger);
       for (DcMotor motor : motors) {
-        telemetry.addData("Encoder " + hardwareMap.getNamesOf(motor), motor.getCurrentPosition());
+        // Current > ~0.1 A means the hub is really driving the motor
+        telemetry.addData("Motor " + hardwareMap.getNamesOf(motor), "port %d  power %.2f  %.2f A  enc %d",
+            motor.getPortNumber(), motor.getPower(),
+            ((DcMotorEx) motor).getCurrent(CurrentUnit.AMPS), motor.getCurrentPosition());
       }
+      addHubReport();
       telemetry.update();
     }
 
     for (DcMotor motor : motors) {
       motor.setPower(0);
+    }
+  }
+
+  // Which hub and port every configured motor is on, plus each hub's power
+  private void addHardwareReport() {
+    for (DcMotor motor : hardwareMap.getAll(DcMotor.class)) {
+      telemetry.addData("Motor " + hardwareMap.getNamesOf(motor), "port %d on %s",
+          motor.getPortNumber(), motor.getConnectionInfo());
+    }
+    addHubReport();
+  }
+
+  // Input voltage below ~11 V (or ~0 V) means no battery power for the motors
+  private void addHubReport() {
+    for (LynxModule hub : hardwareMap.getAll(LynxModule.class)) {
+      telemetry.addData("Hub " + hub.getModuleAddress() + (hub.isParent() ? " (Control Hub)" : " (Expansion Hub)"),
+          "%.1f V in, %.2f A total",
+          hub.getInputVoltage(VoltageUnit.VOLTS), hub.getCurrent(CurrentUnit.AMPS));
     }
   }
 
