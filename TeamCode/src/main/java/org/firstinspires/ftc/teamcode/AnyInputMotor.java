@@ -6,6 +6,8 @@ import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorController;
+import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
@@ -13,6 +15,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -24,8 +27,9 @@ import java.util.List;
  *   Any button  -> half speed forward (A, B, X, Y, bumpers, D-pad, stick clicks, ...).
  *   Nothing     -> motor stops.
  *
- * Spins EVERY motor in the active robot configuration, so it works no matter which
- * port the test motor is plugged into. If the robot is built, lift the wheels off the
+ * Drives ALL four motor ports (0-3) on the hub, whatever the robot configuration says,
+ * so it works no matter which port the test motor is plugged into. The configuration
+ * just needs at least one motor on the Control Hub. If the robot is built, lift the wheels off the
  * ground first. The screen shows the raw gamepad values so we can tell whether the
  * gamepad, the motor or power is the problem.
  */
@@ -38,13 +42,20 @@ public class AnyInputMotor extends LinearOpMode {
   public void runOpMode() {
     telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-    List<DcMotor> motors = hardwareMap.getAll(DcMotor.class);
-    StringBuilder names = new StringBuilder();
-    for (DcMotor motor : motors) {
-      motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-      motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-      motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-      names.append(hardwareMap.getNamesOf(motor)).append(' ');
+    // Drive ALL four motor ports (0-3) of every motor controller in the configuration,
+    // not just the ports the configuration names, so the motor spins whatever port it's in
+    List<DcMotorController> controllers = hardwareMap.getAll(DcMotorController.class);
+    List<DcMotorEx> motors = new ArrayList<>();
+    List<String> labels = new ArrayList<>();
+    for (DcMotorController controller : controllers) {
+      for (int port = 0; port < 4; port++) {
+        DcMotorEx motor = new DcMotorImplEx(controller, port);
+        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        motors.add(motor);
+        labels.add("Port " + port + (controllers.size() > 1 ? " (" + controller.getConnectionInfo() + ")" : ""));
+      }
     }
 
     if (motors.isEmpty()) {
@@ -83,7 +94,7 @@ public class AnyInputMotor extends LinearOpMode {
         }
       }
 
-      for (DcMotor motor : motors) {
+      for (DcMotorEx motor : motors) {
         motor.setPower(power);
       }
 
@@ -94,17 +105,17 @@ public class AnyInputMotor extends LinearOpMode {
           gamepad1.left_stick_x, gamepad1.left_stick_y,
           gamepad1.right_stick_x, gamepad1.right_stick_y,
           gamepad1.left_trigger, gamepad1.right_trigger);
-      for (DcMotor motor : motors) {
-        // Current > ~0.1 A means the hub is really driving the motor
-        telemetry.addData("Motor " + hardwareMap.getNamesOf(motor), "port %d  power %.2f  %.2f A  enc %d",
-            motor.getPortNumber(), motor.getPower(),
-            ((DcMotorEx) motor).getCurrent(CurrentUnit.AMPS), motor.getCurrentPosition());
+      for (int i = 0; i < motors.size(); i++) {
+        // Current > ~0.1 A on a port means a motor there is really being driven
+        DcMotorEx motor = motors.get(i);
+        telemetry.addData(labels.get(i), "power %.2f  %.2f A  enc %d",
+            motor.getPower(), motor.getCurrent(CurrentUnit.AMPS), motor.getCurrentPosition());
       }
       addHubReport();
       telemetry.update();
     }
 
-    for (DcMotor motor : motors) {
+    for (DcMotorEx motor : motors) {
       motor.setPower(0);
     }
   }
