@@ -28,10 +28,22 @@ case "${1:-usb}" in
     ;;
 esac
 
-if ! "$ADB" devices | grep -qw device; then
+# Only ever install onto a Control Hub: a Driver Hub plugged in by mistake must not get
+# the Robot Controller app
+CONTROL_HUB=""
+for serial in $("$ADB" devices | awk 'NR>1 && $2=="device" {print $1}'); do
+  model=$("$ADB" -s "$serial" shell getprop ro.product.model | tr -d '\r')
+  if [[ "$model" == *"Control Hub"* ]]; then
+    CONTROL_HUB="$serial"
+  else
+    echo "Skipping $serial ($model): not a Control Hub"
+  fi
+done
+if [ -z "$CONTROL_HUB" ]; then
   echo "No Control Hub found. Plug it in with USB-C (and power it on), or run: ./deploy.sh wifi"
   exit 1
 fi
+export ANDROID_SERIAL="$CONTROL_HUB"
 
 ./gradlew installDebug
 echo "Installed. On the Driver Hub, pick the OpMode and press INIT."
