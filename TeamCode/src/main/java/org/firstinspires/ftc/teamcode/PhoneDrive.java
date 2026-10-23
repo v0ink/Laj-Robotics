@@ -32,7 +32,8 @@ import java.util.List;
  *   arm          = servo slider, 0 to 1 (an exact position, not a speed)
  *
  * Safety: if no packet arrives for 0.5 s (phone locked, Wi-Fi dropped, app closed)
- * the wheels stop. Select this OpMode on the Driver Hub and press INIT then ▶ first.
+ * the wheels stop. The phone app can INIT and start this OpMode itself (via FTC Dashboard
+ * on port 8000), or you can press INIT then ▶ on the Driver Hub.
  *
  * Wiring is the same as TankDrive: left motor in MOTOR port 0, right motor in
  * MOTOR port 1, arm servo in SERVO port 0.
@@ -92,7 +93,7 @@ public class PhoneDrive extends LinearOpMode {
       return;
     }
 
-    telemetry.addLine("Ready. Press ▶, then connect the phone app to the Control Hub Wi-Fi.");
+    telemetry.addLine("Ready. Tap Start robot in the phone app (or press ▶ here).");
     telemetry.update();
     waitForStart();
 
