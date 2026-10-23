@@ -28,10 +28,9 @@ import java.util.List;
  * Drive with the Robot Remote iPhone app (phone joined to the Control Hub's Wi-Fi).
  *
  *   Left slider  -> left wheel,  Right slider -> right wheel (tank style).
- *     Up = forward, down = backward, middle = stop. The sliders are exact, so there's
- *     only a tiny deadzone: the robot starts moving slowly as soon as you move a slider.
- *   Arm slider   -> left = retract, right = extend. Further = faster, let go = stops
- *     (the servo gets no signal at all, so it stays where it is).
+ *     Up = forward, down = backward, middle = stop. Straight-line speed: halfway up =
+ *     half speed, all the way = full speed. Only a tiny deadzone around the middle.
+ *   Arm slider   -> left = retract, right = extend. Further = faster, let go = stops.
  *
  * The app sends its sliders two ways, about 30 times a second:
  *   1. straight to this OpMode over UDP port 8765 as "LAJ1,left,right,arm" (each -1..1).
@@ -56,21 +55,28 @@ public class PhoneDrive extends LinearOpMode {
   private static final int RIGHT_PORT = 1;
   private static final int ARM_SERVO_PORT = 0;
 
-  // Phone sliders: tiny deadzone, then a small starting power and a gentle curve to 1.0.
-  //   slider: 0.05 -> 0.06   0.25 -> 0.13   0.5 -> 0.32   0.75 -> 0.61   1.0 -> 1.00
-  private static final double DRIVE_DEADZONE = 0.02;
-  private static final double DRIVE_MIN_POWER = 0.06;  // raise if small slider moves don't move the robot
-  private static final double DRIVE_CURVE = 1.8;       // 1 = straight line, higher = gentler start
+  // Phone sliders: straight line ("speed triangle"), power = slider position.
+  //   slider: 0.25 -> 0.25   0.5 -> 0.5   0.75 -> 0.75   1.0 -> 1.0
+  private static final double DRIVE_DEADZONE = 0.02;  // just enough to stop exactly at the middle
+  private static final double DRIVE_MIN_POWER = 0.0;
+  private static final double DRIVE_CURVE = 1.0;      // 1 = straight line
 
+  // Arm: also a straight line, with a small minimum so a light touch beats the servo's own deadband
   private static final double ARM_DEADZONE = 0.03;
-  private static final double ARM_MIN_POWER = 0.08;
-  private static final double ARM_CURVE = 1.5;
+  private static final double ARM_MIN_POWER = 0.05;
+  private static final double ARM_CURVE = 1.0;
+  // Once the direct link has been heard, stick with it (don't flip between the two inputs)
+  private static final double DIRECT_PREFERRED_SECONDS = 2.0;
   // Which way "retract" spins; must match Controller Drive. Flip to 1 if retract goes clockwise.
   private static final int RETRACT_DIRECTION = -1;
 
   private DcMotorEx leftDrive;
   private DcMotorEx rightDrive;
   private ServoControllerEx servos;
+  private boolean armSignalOn;
+  private long armLastActiveNanos;
+  // Switch the arm servo's signal off after this long without input
+  private static final double ARM_IDLE_OFF_SECONDS = 1.0;
 
   // Latest values from the phone, written by the network thread
   private volatile double phoneLeft;
@@ -117,11 +123,20 @@ public class PhoneDrive extends LinearOpMode {
       }
 
       while (opModeIsActive()) {
-        boolean direct = phoneConnected();
-        // Use the direct packets when they're arriving, otherwise gamepad1 (phone via Dashboard)
-        double left = direct ? phoneLeft : -gamepad1.left_stick_y;
-        double right = direct ? phoneRight : -gamepad1.right_stick_y;
-        double arm = direct ? phoneArm : gamepad1.right_trigger - gamepad1.left_trigger;
+        // Use the direct packets whenever the phone has sent any recently. Only if they've been
+        // silent for a while, use gamepad1 (phone via Dashboard, which arrives later).
+        boolean direct = secondsSincePacket() < DIRECT_PREFERRED_SECONDS;
+        boolean fresh = secondsSincePacket() < TIMEOUT_SECONDS;
+        double left, right, arm;
+        if (direct) {
+          left = fresh ? phoneLeft : 0;   // a short gap in packets: stop rather than guess
+          right = fresh ? phoneRight : 0;
+          arm = fresh ? phoneArm : 0;
+        } else {
+          left = -gamepad1.left_stick_y;
+          right = -gamepad1.right_stick_y;
+          arm = gamepad1.right_trigger - gamepad1.left_trigger;
+        }
 
         double leftPower = shape(left, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
         double rightPower = shape(right, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
@@ -176,8 +191,12 @@ public class PhoneDrive extends LinearOpMode {
     }
   }
 
+  private double secondsSincePacket() {
+    return lastPacketNanos == 0 ? Double.MAX_VALUE : (System.nanoTime() - lastPacketNanos) / 1e9;
+  }
+
   private boolean phoneConnected() {
-    return lastPacketNanos != 0 && (System.nanoTime() - lastPacketNanos) / 1e9 < TIMEOUT_SECONDS;
+    return secondsSincePacket() < TIMEOUT_SECONDS;
   }
 
   private static double clip(double value) {
@@ -196,16 +215,26 @@ public class PhoneDrive extends LinearOpMode {
   }
 
   // Continuous servo: power -1..1 becomes a signal around the middle (0.5 = stop).
-  // At 0 the signal is switched off entirely, so the servo never creeps.
+  // The signal stays on while the arm is in use (switching it on and off every loop made the
+  // servo laggy and jerky). After ARM_IDLE_OFF_SECONDS of no input it's switched off, so the
+  // servo can never creep or run off by itself.
   private void setArm(double power) {
     if (servos == null) {
       return;
     }
-    if (power == 0) {
-      armOff();
-    } else {
-      servos.setServoPwmEnable(ARM_SERVO_PORT);
+    if (power != 0) {
+      armLastActiveNanos = System.nanoTime();
+      if (!armSignalOn) {
+        servos.setServoPwmEnable(ARM_SERVO_PORT);
+        armSignalOn = true;
+      }
       servos.setServoPosition(ARM_SERVO_PORT, 0.5 + 0.5 * power);
+    } else if (armSignalOn) {
+      if ((System.nanoTime() - armLastActiveNanos) / 1e9 > ARM_IDLE_OFF_SECONDS) {
+        armOff();
+      } else {
+        servos.setServoPosition(ARM_SERVO_PORT, 0.5); // stop, signal still on
+      }
     }
   }
 
@@ -213,6 +242,7 @@ public class PhoneDrive extends LinearOpMode {
     if (servos != null) {
       servos.setServoPwmDisable(ARM_SERVO_PORT);
     }
+    armSignalOn = false;
   }
 
   // ---- Hardware set-up (by port number, works with any robot configuration) ----

@@ -64,6 +64,10 @@ public class ControllerDrive extends LinearOpMode {
   private DcMotorEx leftDrive;
   private DcMotorEx rightDrive;
   private ServoControllerEx servos;
+  private boolean armSignalOn;
+  private long armLastActiveNanos;
+  // Switch the arm servo's signal off after this long without input
+  private static final double ARM_IDLE_OFF_SECONDS = 1.0;
 
   @Override
   public void runOpMode() {
@@ -127,16 +131,26 @@ public class ControllerDrive extends LinearOpMode {
   }
 
   // Continuous servo: power -1..1 becomes a signal around the middle (0.5 = stop).
-  // At 0 the signal is switched off entirely, so the servo never creeps.
+  // The signal stays on while the arm is in use (switching it on and off every loop made the
+  // servo laggy and jerky). After ARM_IDLE_OFF_SECONDS of no input it's switched off, so the
+  // servo can never creep or run off by itself.
   private void setArm(double power) {
     if (servos == null) {
       return;
     }
-    if (power == 0) {
-      armOff();
-    } else {
-      servos.setServoPwmEnable(ARM_SERVO_PORT);
+    if (power != 0) {
+      armLastActiveNanos = System.nanoTime();
+      if (!armSignalOn) {
+        servos.setServoPwmEnable(ARM_SERVO_PORT);
+        armSignalOn = true;
+      }
       servos.setServoPosition(ARM_SERVO_PORT, 0.5 + 0.5 * power);
+    } else if (armSignalOn) {
+      if ((System.nanoTime() - armLastActiveNanos) / 1e9 > ARM_IDLE_OFF_SECONDS) {
+        armOff();
+      } else {
+        servos.setServoPosition(ARM_SERVO_PORT, 0.5); // stop, signal still on
+      }
     }
   }
 
@@ -144,6 +158,7 @@ public class ControllerDrive extends LinearOpMode {
     if (servos != null) {
       servos.setServoPwmDisable(ARM_SERVO_PORT);
     }
+    armSignalOn = false;
   }
 
   // ---- Hardware set-up (by port number, works with any robot configuration) ----
