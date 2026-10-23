@@ -4,7 +4,6 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.lynx.LynxDcMotorController;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.hardware.lynx.LynxServoController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -13,8 +12,6 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Gamepad;
-import com.qualcomm.robotcore.hardware.ServoController;
-import com.qualcomm.robotcore.hardware.ServoControllerEx;
 
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 
@@ -44,7 +41,6 @@ public class ControllerDrive extends LinearOpMode {
 
   private static final int LEFT_PORT = 0;
   private static final int RIGHT_PORT = 1;
-  private static final int ARM_SERVO_PORT = 0;
 
   // Drive sticks: straight line ("speed triangle"), same as Phone Drive.
   // Halfway = half speed, all the way = full speed.
@@ -63,11 +59,7 @@ public class ControllerDrive extends LinearOpMode {
 
   private DcMotorEx leftDrive;
   private DcMotorEx rightDrive;
-  private ServoControllerEx servos;
-  private boolean armSignalOn;
-  private long armLastActiveNanos;
-  // Switch the arm servo's signal off after this long without input
-  private static final double ARM_IDLE_OFF_SECONDS = 1.0;
+  private ArmServo arm;
 
   @Override
   public void runOpMode() {
@@ -79,7 +71,6 @@ public class ControllerDrive extends LinearOpMode {
       waitForStart();
       return;
     }
-    armOff(); // no servo signal until a trigger is pulled, so the arm can't move by itself
 
     telemetry.addLine("Ready. Press ▶, then Start + A on the gamepad.");
     telemetry.update();
@@ -96,7 +87,7 @@ public class ControllerDrive extends LinearOpMode {
         // Triggers: left retracts, right extends; pulling both cancels out
         double armInput = gamepad1.left_trigger - gamepad1.right_trigger;
         double armPower = RETRACT_DIRECTION * shape(armInput, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE);
-        setArm(armPower);
+        arm.setPower(armPower);
 
         if (gamepad1.getGamepadId() == Gamepad.ID_UNASSOCIATED) {
           telemetry.addLine("No gamepad! Hold Start + A on the gamepad.");
@@ -105,8 +96,9 @@ public class ControllerDrive extends LinearOpMode {
             -gamepad1.left_stick_y, leftPower);
         telemetry.addData("Right (port " + RIGHT_PORT + ")", "stick %.2f -> power %.2f",
             -gamepad1.right_stick_y, rightPower);
-        telemetry.addData("Arm (servo port " + ARM_SERVO_PORT + ")", "LT %.2f RT %.2f -> power %.2f",
+        telemetry.addData("Arm (servo port " + ArmServo.PORT + ")", "LT %.2f RT %.2f -> power %.2f",
             gamepad1.left_trigger, gamepad1.right_trigger, armPower);
+        telemetry.addData("Arm servo", arm.status());
         addBatteryLine();
         telemetry.update();
       }
@@ -114,7 +106,7 @@ public class ControllerDrive extends LinearOpMode {
       // Always leave everything stopped, even if something above went wrong
       leftDrive.setPower(0);
       rightDrive.setPower(0);
-      armOff();
+      arm.off();
     }
   }
 
@@ -128,37 +120,6 @@ public class ControllerDrive extends LinearOpMode {
     }
     double scaled = (magnitude - deadzone) / (1 - deadzone); // 0..1 past the deadzone
     return Math.signum(input) * (minPower + (1 - minPower) * Math.pow(scaled, curve));
-  }
-
-  // Continuous servo: power -1..1 becomes a signal around the middle (0.5 = stop).
-  // The signal stays on while the arm is in use (switching it on and off every loop made the
-  // servo laggy and jerky). After ARM_IDLE_OFF_SECONDS of no input it's switched off, so the
-  // servo can never creep or run off by itself.
-  private void setArm(double power) {
-    if (servos == null) {
-      return;
-    }
-    if (power != 0) {
-      armLastActiveNanos = System.nanoTime();
-      if (!armSignalOn) {
-        servos.setServoPwmEnable(ARM_SERVO_PORT);
-        armSignalOn = true;
-      }
-      servos.setServoPosition(ARM_SERVO_PORT, 0.5 + 0.5 * power);
-    } else if (armSignalOn) {
-      if ((System.nanoTime() - armLastActiveNanos) / 1e9 > ARM_IDLE_OFF_SECONDS) {
-        armOff();
-      } else {
-        servos.setServoPosition(ARM_SERVO_PORT, 0.5); // stop, signal still on
-      }
-    }
-  }
-
-  private void armOff() {
-    if (servos != null) {
-      servos.setServoPwmDisable(ARM_SERVO_PORT);
-    }
-    armSignalOn = false;
   }
 
   // ---- Hardware set-up (by port number, works with any robot configuration) ----
@@ -193,17 +154,8 @@ public class ControllerDrive extends LinearOpMode {
       motor.setPower(0);
     }
 
-    List<ServoController> configuredServos = hardwareMap.getAll(ServoController.class);
-    if (!configuredServos.isEmpty() && configuredServos.get(0) instanceof ServoControllerEx) {
-      servos = (ServoControllerEx) configuredServos.get(0);
-    } else if (hub != null) {
-      try {
-        servos = new LynxServoController(hardwareMap.appContext, hub);
-      } catch (Exception e) {
-        telemetry.addData("Servo controller error", e.getMessage());
-      }
-    }
-    if (servos == null) {
+    arm = new ArmServo(hardwareMap);
+    if (!arm.isAvailable()) {
       telemetry.addLine("Servo port not available: the arm won't move.");
     }
     return true;

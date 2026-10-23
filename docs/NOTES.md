@@ -135,6 +135,14 @@ Both are in the **Laj** group and use the same wiring: left drive motor MOTOR po
 
 When the arm input is released the servo is told to stop, and after 1 s with no input its signal is switched **off**, so it can never creep or run off by itself. (Switching it off instantly every time made the servo laggy and jerky.)
 
+### Arm servo and stall guard
+
+The arm code lives in `ArmServo.java` (shared, not an OpMode). The servo is in continuous-rotation mode, so it has no position. Instead the Control Hub measures the **servo current**, which jumps when the arm hits the end of its travel:
+
+- **Arm Test** (program in the `Laj` group) runs the arm slowly each way until it stalls, shows the moving and stalled currents, and saves a threshold halfway between them to the Control Hub (`FIRST/laj_arm_stall_milliamps.txt`). Run it once, and again whenever the arm changes.
+- **Stall guard** (Controller Drive and Phone Drive): if the current stays above that threshold for 0.2 s, the arm stops pushing that way and only moves the other way until you reverse. Until Arm Test has been run, a default of 1200 mA is used.
+- The Driver Hub shows the arm line: power, current, the limit, and whether it's stopped at an end.
+
 ## Robot Remote (iPhone app)
 
 Source is in `robotics/RobotRemote` (not in this repo). Built with XcodeGen + Xcode; install from the Mac with `xcrun devicectl device install app`.

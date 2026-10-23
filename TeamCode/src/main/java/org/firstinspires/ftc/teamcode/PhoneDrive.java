@@ -4,7 +4,6 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.lynx.LynxDcMotorController;
 import com.qualcomm.hardware.lynx.LynxModule;
-import com.qualcomm.hardware.lynx.LynxServoController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -12,8 +11,6 @@ import com.qualcomm.robotcore.hardware.DcMotorController;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.ServoController;
-import com.qualcomm.robotcore.hardware.ServoControllerEx;
 
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 
@@ -53,7 +50,6 @@ public class PhoneDrive extends LinearOpMode {
 
   private static final int LEFT_PORT = 0;
   private static final int RIGHT_PORT = 1;
-  private static final int ARM_SERVO_PORT = 0;
 
   // Phone sliders: straight line ("speed triangle"), power = slider position.
   //   slider: 0.25 -> 0.25   0.5 -> 0.5   0.75 -> 0.75   1.0 -> 1.0
@@ -72,11 +68,7 @@ public class PhoneDrive extends LinearOpMode {
 
   private DcMotorEx leftDrive;
   private DcMotorEx rightDrive;
-  private ServoControllerEx servos;
-  private boolean armSignalOn;
-  private long armLastActiveNanos;
-  // Switch the arm servo's signal off after this long without input
-  private static final double ARM_IDLE_OFF_SECONDS = 1.0;
+  private ArmServo arm;
 
   // Latest values from the phone, written by the network thread
   private volatile double phoneLeft;
@@ -95,8 +87,6 @@ public class PhoneDrive extends LinearOpMode {
       waitForStart();
       return;
     }
-    armOff();
-
     DatagramSocket socket;
     try {
       // Reuse the port even if a previous run didn't close it cleanly
@@ -127,38 +117,39 @@ public class PhoneDrive extends LinearOpMode {
         // silent for a while, use gamepad1 (phone via Dashboard, which arrives later).
         boolean direct = secondsSincePacket() < DIRECT_PREFERRED_SECONDS;
         boolean fresh = secondsSincePacket() < TIMEOUT_SECONDS;
-        double left, right, arm;
+        double left, right, armInput;
         if (direct) {
           left = fresh ? phoneLeft : 0;   // a short gap in packets: stop rather than guess
           right = fresh ? phoneRight : 0;
-          arm = fresh ? phoneArm : 0;
+          armInput = fresh ? phoneArm : 0;
         } else {
           left = -gamepad1.left_stick_y;
           right = -gamepad1.right_stick_y;
-          arm = gamepad1.right_trigger - gamepad1.left_trigger;
+          armInput = gamepad1.right_trigger - gamepad1.left_trigger;
         }
 
         double leftPower = shape(left, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
         double rightPower = shape(right, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
         // Arm: left (negative) = retract, right (positive) = extend
-        double armPower = RETRACT_DIRECTION * shape(-arm, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE);
+        double armPower = RETRACT_DIRECTION * shape(-armInput, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE);
 
         leftDrive.setPower(leftPower);
         rightDrive.setPower(rightPower);
-        setArm(armPower);
+        arm.setPower(armPower);
 
         telemetry.addData("Phone", direct ? "direct link (" + packetCount + " packets)"
             : "via gamepad1 (direct link quiet)");
         telemetry.addData("Left  (port " + LEFT_PORT + ")", "slider %.2f -> power %.2f", left, leftPower);
         telemetry.addData("Right (port " + RIGHT_PORT + ")", "slider %.2f -> power %.2f", right, rightPower);
-        telemetry.addData("Arm (servo port " + ARM_SERVO_PORT + ")", "slider %.2f -> power %.2f", arm, armPower);
+        telemetry.addData("Arm (servo port " + ArmServo.PORT + ")", "slider %.2f -> power %.2f", armInput, armPower);
+        telemetry.addData("Arm servo", arm.status());
         addBatteryLine();
         telemetry.update();
       }
     } finally {
       leftDrive.setPower(0);
       rightDrive.setPower(0);
-      armOff();
+      arm.off();
       listening = false;
       socket.close();
       receiver.join(500);
@@ -214,37 +205,6 @@ public class PhoneDrive extends LinearOpMode {
     return Math.signum(input) * (minPower + (1 - minPower) * Math.pow(scaled, curve));
   }
 
-  // Continuous servo: power -1..1 becomes a signal around the middle (0.5 = stop).
-  // The signal stays on while the arm is in use (switching it on and off every loop made the
-  // servo laggy and jerky). After ARM_IDLE_OFF_SECONDS of no input it's switched off, so the
-  // servo can never creep or run off by itself.
-  private void setArm(double power) {
-    if (servos == null) {
-      return;
-    }
-    if (power != 0) {
-      armLastActiveNanos = System.nanoTime();
-      if (!armSignalOn) {
-        servos.setServoPwmEnable(ARM_SERVO_PORT);
-        armSignalOn = true;
-      }
-      servos.setServoPosition(ARM_SERVO_PORT, 0.5 + 0.5 * power);
-    } else if (armSignalOn) {
-      if ((System.nanoTime() - armLastActiveNanos) / 1e9 > ARM_IDLE_OFF_SECONDS) {
-        armOff();
-      } else {
-        servos.setServoPosition(ARM_SERVO_PORT, 0.5); // stop, signal still on
-      }
-    }
-  }
-
-  private void armOff() {
-    if (servos != null) {
-      servos.setServoPwmDisable(ARM_SERVO_PORT);
-    }
-    armSignalOn = false;
-  }
-
   // ---- Hardware set-up (by port number, works with any robot configuration) ----
 
   private boolean setUpHardware() {
@@ -276,17 +236,8 @@ public class PhoneDrive extends LinearOpMode {
       motor.setPower(0);
     }
 
-    List<ServoController> configuredServos = hardwareMap.getAll(ServoController.class);
-    if (!configuredServos.isEmpty() && configuredServos.get(0) instanceof ServoControllerEx) {
-      servos = (ServoControllerEx) configuredServos.get(0);
-    } else if (hub != null) {
-      try {
-        servos = new LynxServoController(hardwareMap.appContext, hub);
-      } catch (Exception e) {
-        telemetry.addData("Servo controller error", e.getMessage());
-      }
-    }
-    if (servos == null) {
+    arm = new ArmServo(hardwareMap);
+    if (!arm.isAvailable()) {
       telemetry.addLine("Servo port not available: the arm won't move.");
     }
     return true;
