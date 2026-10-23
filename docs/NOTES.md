@@ -124,6 +124,6 @@ A browser control panel served by the robot at **http://192.168.43.1:8080/dash**
 - FTC SIM (practice in the browser, Blocks/OnBot Java): https://ftcsim.org
 - Kit: https://www.revrobotics.com/rev-45-3529/
 
-## Phone Drive (iPhone app control)
+## Robot Remote (iPhone app)
 
-OpMode `Phone Drive` listens for UDP packets (`left,right,arm`) on port 8765 from the **Robot Remote** iPhone app (source in `robotics/RobotRemote`, not in this repo). The phone joins the Control Hub's Wi-Fi and sends to `192.168.43.1`. Left thumbstick = left wheel, right thumbstick = right wheel, top slider = arm servo position (0 to 1). Wheels stop if no packet arrives for 0.5 s. The app's **Start robot** button INITs and starts the OpMode itself through FTC Dashboard's websocket (`ws://192.168.43.1:8000`), and shows the OpMode state and battery voltage, so only the robot and the phone are needed. Stop button = stop OpMode. (You can still INIT and ▶ from the Driver Hub.)
+The **Robot Remote** iPhone app (source in `robotics/RobotRemote`, not in this repo) works like the Driver Station app. The phone joins the Control Hub's Wi-Fi and talks to FTC Dashboard's websocket (`ws://192.168.43.1:8000`). The app lists the OpModes on the robot, and Start / Stop INITs, starts and stops the chosen one. The on-screen controls are sent as **gamepad1**, so the same OpMode code works with the phone or a real gamepad: left and right thumbsticks, the top slider (acts as the two triggers: right = right trigger, left = left trigger, springs back to centre), LB / RB, D-pad up / down and A / B / X / Y. The Dashboard zeroes the gamepad if the phone goes quiet. The phone only supplies gamepad1 when no physical gamepad is assigned to it.
