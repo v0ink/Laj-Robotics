@@ -179,7 +179,7 @@ public class ArmServo {
   public String status() {
     String guard = blockedDirection == 0 ? "free"
         : "stopped at the " + (blockedDirection > 0 ? "+" : "-") + " end, reverse to move";
-    return String.format("power %.2f  %.0f mA  limit %.0f mA%s  %s", power, milliamps, stallMilliamps,
+    return String.format("power %.2f  %.0f mA  limit %.0f mA%s  %s", power + 0.0, milliamps, stallMilliamps,
         calibrated ? "" : " (default, run Arm Test)", guard);
   }
 
