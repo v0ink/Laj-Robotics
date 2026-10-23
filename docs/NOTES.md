@@ -130,7 +130,7 @@ Both are in the **Laj** group and use the same wiring: left drive motor MOTOR po
 
 | Program | Driven by | Drive | Arm |
 |---|---|---|---|
-| **Controller Drive** | REV gamepad on the Driver Hub | Left / right stick = left / right wheel. Deadzone 0.05, starts at 8% power, full speed only at full push | Left trigger retract, right trigger extend; trigger = speed |
+| **Controller Drive** | REV gamepad on the Driver Hub | Left / right stick = left / right wheel. Straight line: halfway = half speed, deadzone 0.05 | Left trigger retract, right trigger extend; trigger = speed |
 | **Phone Drive** | Robot Remote iPhone app | Left / right slider = left / right wheel. Straight line: halfway = half speed, tiny 0.02 deadzone | Arm slider: left retract, right extend; further = faster |
 
 When the arm input is released the servo is told to stop, and after 1 s with no input its signal is switched **off**, so it can never creep or run off by itself. (Switching it off instantly every time made the servo laggy and jerky.)

@@ -24,7 +24,7 @@ import java.util.List;
  * Drive with the REV gamepad on the Driver Hub (tank style).
  *
  *   Left stick up/down  -> left wheel,  Right stick up/down -> right wheel.
- *     A light push starts slow right away; full speed only at full push.
+ *     Straight-line speed: halfway = half speed, all the way = full speed.
  *     Both up = forward, both down = backward, one up + one down = spin in place.
  *
  *   Left trigger  -> retract the arm (counter-clockwise, looking at the front of the servo)
@@ -46,17 +46,17 @@ public class ControllerDrive extends LinearOpMode {
   private static final int RIGHT_PORT = 1;
   private static final int ARM_SERVO_PORT = 0;
 
-  // Drive sticks. Past the deadzone the motor starts at DRIVE_MIN_POWER (just enough to
-  // get the wheels turning), then the power grows along a curve to 1.0 at full push.
-  //   stick: 0.1 -> 0.08   0.25 -> 0.12   0.5 -> 0.29   0.75 -> 0.58   1.0 -> 1.00
-  private static final double DRIVE_DEADZONE = 0.05;   // ignore stick wobble when released
-  private static final double DRIVE_MIN_POWER = 0.08;  // raise if light pushes don't move the robot
-  private static final double DRIVE_CURVE = 2.0;       // 1 = straight line, higher = gentler start
+  // Drive sticks: straight line ("speed triangle"), same as Phone Drive.
+  // Halfway = half speed, all the way = full speed.
+  //   stick: 0.25 -> 0.21   0.5 -> 0.47   0.75 -> 0.74   1.0 -> 1.00
+  private static final double DRIVE_DEADZONE = 0.05;   // gamepad sticks don't rest exactly at 0
+  private static final double DRIVE_MIN_POWER = 0.0;
+  private static final double DRIVE_CURVE = 1.0;       // 1 = straight line
 
-  // Arm triggers, same idea: slow from the first bit of pull, full speed only when fully pulled
+  // Arm triggers: straight line too, with a small minimum so a light pull beats the servo's deadband
   private static final double ARM_DEADZONE = 0.03;
-  private static final double ARM_MIN_POWER = 0.08;
-  private static final double ARM_CURVE = 1.5;
+  private static final double ARM_MIN_POWER = 0.05;
+  private static final double ARM_CURVE = 1.0;
   // Which way "retract" spins. If the left trigger turns the arm clockwise
   // (looking at the front of the servo), change this to 1.
   private static final int RETRACT_DIRECTION = -1;
