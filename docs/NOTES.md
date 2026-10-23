@@ -124,6 +124,22 @@ A browser control panel served by the robot at **http://192.168.43.1:8080/dash**
 - FTC SIM (practice in the browser, Blocks/OnBot Java): https://ftcsim.org
 - Kit: https://www.revrobotics.com/rev-45-3529/
 
+## Our programs (TeamCode)
+
+Both are in the **Laj** group and use the same wiring: left drive motor MOTOR port 0, right drive motor MOTOR port 1 (reversed), arm servo SERVO port 0 (continuous rotation). Everything is found by port number, so the robot configuration doesn't need special names.
+
+| Program | Driven by | Drive | Arm |
+|---|---|---|---|
+| **Controller Drive** | REV gamepad on the Driver Hub | Left / right stick = left / right wheel. Deadzone 0.05, starts at 8% power, full speed only at full push | Left trigger retract, right trigger extend; trigger = speed |
+| **Phone Drive** | Robot Remote iPhone app | Left / right slider = left / right wheel. Tiny 0.02 deadzone, starts at 6% power | Arm slider: left retract, right extend; further = faster |
+
+When the arm input is released, the servo's signal is switched **off**, so it can never creep or run off by itself.
+
 ## Robot Remote (iPhone app)
 
-The **Robot Remote** iPhone app (source in `robotics/RobotRemote`, not in this repo) works like the Driver Station app. The phone joins the Control Hub's Wi-Fi and talks to FTC Dashboard's websocket (`ws://192.168.43.1:8000`). The app lists the OpModes on the robot, and Start / Stop INITs, starts and stops the chosen one. The on-screen controls are sent as **gamepad1**, so the same OpMode code works with the phone or a real gamepad: left and right thumbsticks, the top slider (acts as the two triggers: right = right trigger, left = left trigger, springs back to centre), LB / RB, D-pad up / down and A / B / X / Y. The Dashboard zeroes the gamepad if the phone goes quiet. The phone only supplies gamepad1 when no physical gamepad is assigned to it.
+Source is in `robotics/RobotRemote` (not in this repo). Built with XcodeGen + Xcode; install from the Mac with `xcrun devicectl device install app`.
+
+- The phone joins the Control Hub's Wi-Fi.
+- **Start / Stop and the program list** go through FTC Dashboard's websocket (`ws://192.168.43.1:8000`). Only programs in the `Laj` group are shown. Start stops any other running program first, then INITs and starts.
+- **The sliders** go straight to Phone Drive over **UDP port 8765**, 30 times a second, as `LAJ1,left,right,arm` (each -1..1). They don't use gamepad1, because FTC Dashboard ignores phone input whenever a real gamepad is active on the Driver Hub. That was why driving from the phone only worked sometimes.
+- Safety: if Phone Drive hears nothing for 0.3 s, everything stops.
