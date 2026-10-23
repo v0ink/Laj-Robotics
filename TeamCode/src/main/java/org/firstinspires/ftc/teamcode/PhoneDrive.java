@@ -33,13 +33,15 @@ import java.util.List;
  *   Arm slider   -> left = retract, right = extend. Further = faster, let go = stops
  *     (the servo gets no signal at all, so it stays where it is).
  *
- * The app sends its sliders straight to this OpMode over UDP port 8765, about 30 times a
- * second, as text: "LAJ1,left,right,arm" (each -1..1). This does NOT go through gamepad1,
- * so it works even when a gamepad is plugged into the Driver Hub. The app starts and stops
- * this OpMode through FTC Dashboard.
+ * The app sends its sliders two ways, about 30 times a second:
+ *   1. straight to this OpMode over UDP port 8765 as "LAJ1,left,right,arm" (each -1..1).
+ *      This works even when a gamepad is active on the Driver Hub.
+ *   2. as gamepad1 through FTC Dashboard (sliders = sticks, arm = triggers).
+ * The direct packets win when they're arriving; otherwise gamepad1 is used. The app starts
+ * and stops this OpMode through FTC Dashboard.
  *
- * Safety: if no packet arrives for 0.3 s (phone locked, Wi-Fi dropped, app closed),
- * everything stops until the phone is back.
+ * Safety: if the direct packets stop for 0.3 s, this falls back to gamepad1, which the
+ * Dashboard zeroes after 0.5 s of silence, so everything stops when the phone goes quiet.
  *
  * Wiring is the same as Controller Drive: left motor MOTOR port 0, right motor
  * MOTOR port 1, arm servo SERVO port 0.
@@ -109,28 +111,32 @@ public class PhoneDrive extends LinearOpMode {
       // Show whether the phone is talking to us before the OpMode is started
       while (!isStarted() && !isStopRequested()) {
         telemetry.addLine("Ready. Tap Start in the Robot Remote app (or press ▶ here).");
-        telemetry.addData("Phone", phoneConnected() ? "connected" : "not heard yet");
+        telemetry.addData("Phone direct link", phoneConnected() ? "connected" : "not heard yet");
         telemetry.update();
         sleep(50);
       }
 
       while (opModeIsActive()) {
-        boolean connected = phoneConnected();
-        double leftPower = connected ? shape(phoneLeft, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE) : 0;
-        double rightPower = connected ? shape(phoneRight, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE) : 0;
-        // Phone arm slider: left (negative) = retract, right (positive) = extend
-        double armPower = connected
-            ? RETRACT_DIRECTION * shape(-phoneArm, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE) : 0;
+        boolean direct = phoneConnected();
+        // Use the direct packets when they're arriving, otherwise gamepad1 (phone via Dashboard)
+        double left = direct ? phoneLeft : -gamepad1.left_stick_y;
+        double right = direct ? phoneRight : -gamepad1.right_stick_y;
+        double arm = direct ? phoneArm : gamepad1.right_trigger - gamepad1.left_trigger;
+
+        double leftPower = shape(left, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
+        double rightPower = shape(right, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
+        // Arm: left (negative) = retract, right (positive) = extend
+        double armPower = RETRACT_DIRECTION * shape(-arm, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE);
 
         leftDrive.setPower(leftPower);
         rightDrive.setPower(rightPower);
         setArm(armPower);
 
-        telemetry.addData("Phone", connected ? "connected (" + packetCount + " packets)"
-            : "NO SIGNAL: everything stopped");
-        telemetry.addData("Left  (port " + LEFT_PORT + ")", "slider %.2f -> power %.2f", phoneLeft, leftPower);
-        telemetry.addData("Right (port " + RIGHT_PORT + ")", "slider %.2f -> power %.2f", phoneRight, rightPower);
-        telemetry.addData("Arm (servo port " + ARM_SERVO_PORT + ")", "slider %.2f -> power %.2f", phoneArm, armPower);
+        telemetry.addData("Phone", direct ? "direct link (" + packetCount + " packets)"
+            : "via gamepad1 (direct link quiet)");
+        telemetry.addData("Left  (port " + LEFT_PORT + ")", "slider %.2f -> power %.2f", left, leftPower);
+        telemetry.addData("Right (port " + RIGHT_PORT + ")", "slider %.2f -> power %.2f", right, rightPower);
+        telemetry.addData("Arm (servo port " + ARM_SERVO_PORT + ")", "slider %.2f -> power %.2f", arm, armPower);
         addBatteryLine();
         telemetry.update();
       }

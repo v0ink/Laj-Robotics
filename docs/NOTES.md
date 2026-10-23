@@ -141,5 +141,10 @@ Source is in `robotics/RobotRemote` (not in this repo). Built with XcodeGen + Xc
 
 - The phone joins the Control Hub's Wi-Fi.
 - **Start / Stop and the program list** go through FTC Dashboard's websocket (`ws://192.168.43.1:8000`). Only programs in the `Laj` group are shown. Start stops any other running program first, then INITs and starts.
-- **The sliders** go straight to Phone Drive over **UDP port 8765**, 30 times a second, as `LAJ1,left,right,arm` (each -1..1). They don't use gamepad1, because FTC Dashboard ignores phone input whenever a real gamepad is active on the Driver Hub. That was why driving from the phone only worked sometimes.
-- Safety: if Phone Drive hears nothing for 0.3 s, everything stops.
+- **The sliders** go out two ways, 30 times a second:
+  1. straight to Phone Drive over **UDP port 8765** as `LAJ1,left,right,arm` (each -1..1). This works even when a real gamepad is active on the Driver Hub (FTC Dashboard then ignores phone input). The app forces this onto Wi-Fi and rebuilds it whenever the phone changes network; a connection opened on the hotspot or cellular otherwise keeps sending into nothing.
+  2. as **gamepad1** through the Dashboard (sliders = left/right stick, arm = triggers). That lets Controller Drive work from the phone too, and it's Phone Drive's backup.
+- Phone Drive uses the direct packets while they arrive, otherwise gamepad1. Its telemetry says which ("direct link" / "via gamepad1").
+- Safety: direct packets time out after 0.3 s, and the Dashboard zeroes gamepad1 after 0.5 s of silence, so everything stops when the phone goes quiet.
+- Start retries INIT/STOP every 1.5 s, because the robot ignores requests while it's still booting.
+- Install the app from the Mac: `robotics/RobotRemote/install.sh` (phone on a cable or the same network, unlocked).
