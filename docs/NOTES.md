@@ -123,3 +123,7 @@ A browser control panel served by the robot at **http://192.168.43.1:8080/dash**
 - FTC SDK: https://github.com/FIRST-Tech-Challenge/FtcRobotController
 - FTC SIM (practice in the browser, Blocks/OnBot Java): https://ftcsim.org
 - Kit: https://www.revrobotics.com/rev-45-3529/
+
+## Phone Drive (iPhone app control)
+
+OpMode `Phone Drive` listens for UDP packets (`left,right,arm`) on port 8765 from the **Robot Remote** iPhone app (source in `robotics/RobotRemote`, not in this repo). The phone joins the Control Hub's Wi-Fi and sends to `192.168.43.1`. Left thumbstick = left wheel, right thumbstick = right wheel, top slider = arm servo position (0 to 1). Wheels stop if no packet arrives for 0.5 s. Select it on the Driver Hub, INIT, ▶, then open the app.
