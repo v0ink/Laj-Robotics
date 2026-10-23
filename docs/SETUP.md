@@ -19,6 +19,12 @@ sdkmanager --sdk_root=/opt/homebrew/share/android-commandlinetools "platform-too
 
 After that, `./deploy.sh` handles the paths for you.
 
+### Opening the project in Android Studio (Mac or Windows)
+
+Use **File → Open** (or **Open** on the welcome screen) and pick the `Laj-Robotics` folder.
+**Never use "New Project"** pointed at this folder: it adds an `app/` module and new Gradle files that break FIRST's project
+("plugin is already on the classpath with a different version"). Also decline any offer to upgrade the Android Gradle Plugin or Gradle.
+
 ### Windows
 
 The easiest path is **Android Studio**. It installs the JDK and Android SDK itself.
