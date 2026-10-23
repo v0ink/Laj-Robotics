@@ -12,11 +12,9 @@ import com.qualcomm.robotcore.hardware.DcMotorController;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.CRServoImpl;
 import com.qualcomm.robotcore.hardware.ServoController;
-import com.qualcomm.robotcore.hardware.ServoImpl;
-import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
 
@@ -32,7 +30,8 @@ import java.util.List;
  *
  *   Left trigger  -> retract the arm (counter-clockwise, looking at the front of the servo)
  *   Right trigger -> extend the arm  (clockwise)
- *     Pull further = moves faster. Let go = the arm stays where it is.
+ *     The servo is in continuous-rotation mode, so the trigger sets its SPEED:
+ *     a light pull = slow, fully pulled = full speed, let go = stops.
  *
  * Wiring: left drive motor in MOTOR port 0, right drive motor in MOTOR port 1,
  * arm servo in SERVO port 0. Everything is found by port number, so the robot
@@ -45,24 +44,21 @@ public class TankDrive extends LinearOpMode {
   private static final int RIGHT_PORT = 1;
   private static final int ARM_SERVO_PORT = 0;
 
-  // Throttle curve: power = stick^CURVE. 1 = straight line, higher = gentler at the start.
-  // At 2.5, a half push gives ~15% power, 3/4 push ~45%, and a full push 100%.
-  private static final double CURVE = 2.5;
-  // Ignore tiny stick wobble so the robot doesn't creep when the sticks are released
-  private static final double DEADZONE = 0.05;
+  // Drive sticks. Past the deadzone the motor starts at DRIVE_MIN_POWER (just enough to
+  // get the wheels turning), then the power grows along a curve to 1.0 at full push.
+  //   stick: 0.1 -> 0.08   0.25 -> 0.12   0.5 -> 0.29   0.75 -> 0.58   1.0 -> 1.00
+  private static final double DRIVE_DEADZONE = 0.05;   // ignore stick wobble when released
+  private static final double DRIVE_MIN_POWER = 0.08;  // raise if light pushes don't move the robot
+  private static final double DRIVE_CURVE = 2.0;       // 1 = straight line, higher = gentler start
 
-  // How fast the arm moves with a trigger fully pulled, in servo range per second
-  // (servo range is 0 to 1, so 0.5 = half the servo's travel in one second)
-  private static final double ARM_SPEED = 0.5;
-  // Limits of the arm's travel (0 to 1). Narrow these if the arm hits the robot.
-  private static final double ARM_MIN = 0.0;
-  private static final double ARM_MAX = 1.0;
-  // Position the arm jumps to the first time a trigger is pulled (a servo can't report
-  // where it is, so we have to start somewhere)
-  private static final double ARM_START = 0.5;
-  // Which way "retract" turns the servo. If the left trigger turns the arm clockwise
+  // Arm triggers, same idea. A continuous servo barely turns near zero power, so it
+  // also starts at a minimum and reaches full speed only with the trigger fully pulled.
+  private static final double ARM_DEADZONE = 0.03;
+  private static final double ARM_MIN_POWER = 0.08;
+  private static final double ARM_CURVE = 1.5;
+  // Which way "retract" spins. If the left trigger turns the arm clockwise
   // (looking at the front of the servo), change this to -1.
-  private static final int RETRACT_DIRECTION = 1;
+  private static final int RETRACT_DIRECTION = -1;
 
   @Override
   public void runOpMode() {
@@ -92,8 +88,7 @@ public class TankDrive extends LinearOpMode {
     }
 
     ServoController servoController = servoController();
-    Servo arm = servoController != null ? new ServoImpl(servoController, ARM_SERVO_PORT) : null;
-    double armPosition = Double.NaN; // unknown until a trigger is first pulled
+    CRServo arm = servoController != null ? new CRServoImpl(servoController, ARM_SERVO_PORT) : null;
 
     telemetry.addLine("Ready. Press ▶, then Start + A on the gamepad.");
     if (arm == null) {
@@ -102,35 +97,27 @@ public class TankDrive extends LinearOpMode {
     telemetry.update();
 
     waitForStart();
-    ElapsedTime loopTimer = new ElapsedTime();
 
     while (opModeIsActive()) {
-      double dt = loopTimer.seconds();
-      loopTimer.reset();
-
       // Sticks: up gives a negative value, so flip it (up = forward)
-      double leftPower = throttleCurve(-gamepad1.left_stick_y);
-      double rightPower = throttleCurve(-gamepad1.right_stick_y);
+      double leftPower = shape(-gamepad1.left_stick_y, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
+      double rightPower = shape(-gamepad1.right_stick_y, DRIVE_DEADZONE, DRIVE_MIN_POWER, DRIVE_CURVE);
       leftDrive.setPower(leftPower);
       rightDrive.setPower(rightPower);
 
-      // Triggers: right extends, left retracts; pulling both cancels out
-      double armInput = gamepad1.right_trigger - gamepad1.left_trigger;
-      if (arm != null && Math.abs(armInput) > DEADZONE) {
-        if (Double.isNaN(armPosition)) {
-          armPosition = ARM_START;
-        }
-        armPosition -= RETRACT_DIRECTION * armInput * ARM_SPEED * dt;
-        armPosition = Range.clip(armPosition, ARM_MIN, ARM_MAX);
-        arm.setPosition(armPosition);
+      // Triggers: left retracts, right extends; pulling both cancels out
+      double armInput = gamepad1.left_trigger - gamepad1.right_trigger;
+      double armPower = RETRACT_DIRECTION * shape(armInput, ARM_DEADZONE, ARM_MIN_POWER, ARM_CURVE);
+      if (arm != null) {
+        arm.setPower(armPower);
       }
 
       telemetry.addData("Left  (port " + LEFT_PORT + ")", "stick %.2f -> power %.2f",
           -gamepad1.left_stick_y, leftPower);
       telemetry.addData("Right (port " + RIGHT_PORT + ")", "stick %.2f -> power %.2f",
           -gamepad1.right_stick_y, rightPower);
-      telemetry.addData("Arm servo (port " + ARM_SERVO_PORT + ")",
-          Double.isNaN(armPosition) ? "not moved yet" : String.format("%.2f", armPosition));
+      telemetry.addData("Arm (servo port " + ARM_SERVO_PORT + ")", "LT %.2f RT %.2f -> power %.2f",
+          gamepad1.left_trigger, gamepad1.right_trigger, armPower);
       LynxModule hub = controlHub();
       if (hub != null) {
         telemetry.addData("Battery", "%.1f V", hub.getInputVoltage(VoltageUnit.VOLTS));
@@ -140,18 +127,21 @@ public class TankDrive extends LinearOpMode {
 
     leftDrive.setPower(0);
     rightDrive.setPower(0);
+    if (arm != null) {
+      arm.setPower(0);
+    }
   }
 
-  // Video-game style throttle: small pushes give very little power, a full push gives 1.0.
+  // Video-game style input shaping. Inside the deadzone: 0. Just past it: minPower, so
+  // things start moving slowly right away. Then a curve up to exactly 1.0 at full input.
   // The sign is kept, so backward stays backward.
-  private static double throttleCurve(double stick) {
-    double magnitude = Math.abs(stick);
-    if (magnitude < DEADZONE) {
+  private static double shape(double input, double deadzone, double minPower, double curve) {
+    double magnitude = Math.abs(input);
+    if (magnitude < deadzone) {
       return 0;
     }
-    // Rescale so the curve starts at 0 right at the edge of the deadzone
-    double scaled = (magnitude - DEADZONE) / (1 - DEADZONE);
-    return Math.signum(stick) * Math.pow(scaled, CURVE);
+    double scaled = Math.min(1, (magnitude - deadzone) / (1 - deadzone)); // 0..1 past the deadzone
+    return Math.signum(input) * (minPower + (1 - minPower) * Math.pow(scaled, curve));
   }
 
   // The Control Hub's motor controller: from the robot configuration if it has one,
